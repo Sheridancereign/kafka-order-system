@@ -2,12 +2,14 @@ ORDER_CREATED = "order.created"
 ORDER_CONFIRMED = "order.confirmed"
 ORDER_REJECTED = "order.rejected"
 ORDER_CREATED_DLQ = "order.created.dlq"
+ORDER_EVENTS_DLQ = "order.events.dlq"
 
 ALL_TOPICS = [
     ORDER_CREATED,
     ORDER_CONFIRMED,
     ORDER_REJECTED,
     ORDER_CREATED_DLQ,
+    ORDER_EVENTS_DLQ,
 ]
 
 PARTITIONS = 3
