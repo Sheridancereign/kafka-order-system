@@ -8,11 +8,30 @@ from config import kafka_topics
 from orders.models import Order
 from orders.producer import EventPublishError, publish_event
 from orders.serializers import OrderCreateSerializer
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 
 logger = logging.getLogger(__name__)
 
 
 class OrderCreateView(APIView):
+    @extend_schema(
+        tags=["orders"],
+        summary="Create an order",
+        description=(
+                "Saves the order as PENDING, publishes order.created to Kafka "
+                "and returns 202 immediately. The final status (CONFIRMED / REJECTED) "
+                "is set asynchronously by the inventory consumer."
+        ),
+        request=OrderCreateSerializer,
+        responses={
+            202: OrderCreateSerializer,
+            400: OpenApiResponse(description="Validation error: unknown product or quantity < 1"),
+            503: OpenApiResponse(description="Kafka unavailable, the order was not accepted"),
+        },
+        examples=[
+            OpenApiExample("Order for product 1", value={"product": 1, "quantity": 2}, request_only=True),
+        ],
+    )
     def post(self, request):
         serializer = OrderCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -40,3 +59,4 @@ class OrderCreateView(APIView):
             )
 
         return Response(OrderCreateSerializer(order).data, status=status.HTTP_202_ACCEPTED)
+
