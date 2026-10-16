@@ -20,6 +20,14 @@ MAX_ATTEMPTS = 3
 class Command(BaseCommand):
     help = "Inventory consumer: reserves stock for order.created events"
 
+    def _on_assign(self, consumer, partitions) -> None:
+        ids = sorted(p.partition for p in partitions)
+        self.stdout.write(self.style.WARNING(f"Assigned partitions: {ids}"))
+
+    def _on_revoke(self, consumer, partitions) -> None:
+        ids = sorted(p.partition for p in partitions)
+        self.stdout.write(self.style.WARNING(f"Revoked partitions: {ids}"))
+
     def handle(self, *args, **options):
         consumer = Consumer(
             {
@@ -29,7 +37,12 @@ class Command(BaseCommand):
                 "enable.auto.commit": False,
             }
         )
-        consumer.subscribe([kafka_topics.ORDER_CREATED])
+
+        consumer.subscribe(
+            [kafka_topics.ORDER_CREATED],
+            on_assign=self._on_assign,
+            on_revoke=self._on_revoke,
+        )
         self.stdout.write(f"Inventory consumer started (group={GROUP_ID})")
 
         try:
@@ -62,7 +75,7 @@ class Command(BaseCommand):
                     "Attempt %s/%s failed (partition=%s offset=%s): %s",
                     attempt, MAX_ATTEMPTS, msg.partition(), msg.offset(), exc,
                 )
-                time.sleep(2**attempt)
+                time.sleep(2 ** attempt)
         self._send_to_dlq(msg, f"Failed after {MAX_ATTEMPTS} attempts")
 
     def _process(self, msg) -> None:
@@ -89,7 +102,9 @@ class Command(BaseCommand):
                 "reason": outcome.reason,
             },
         )
-        self.stdout.write(f"order {outcome.order_id} -> {outcome.status} {outcome.reason}")
+        self.stdout.write(
+            f"[p{msg.partition()}] order {outcome.order_id} -> {outcome.status} {outcome.reason}"
+        )
 
     def _send_to_dlq(self, msg, reason: str) -> None:
         publish_event(
