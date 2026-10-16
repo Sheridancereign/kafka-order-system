@@ -7,8 +7,10 @@ from rest_framework.views import APIView
 from config import kafka_topics
 from orders.models import Order
 from orders.producer import EventPublishError, publish_event
-from orders.serializers import OrderCreateSerializer
+from orders.serializers import OrderCreateSerializer, OrderDetailSerializer
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
+from rest_framework.generics import RetrieveAPIView
+
 
 logger = logging.getLogger(__name__)
 
@@ -60,3 +62,19 @@ class OrderCreateView(APIView):
 
         return Response(OrderCreateSerializer(order).data, status=status.HTTP_202_ACCEPTED)
 
+
+@extend_schema(
+    tags=["orders"],
+    summary="Get order status",
+    description=(
+        "Returns the current state of an order. Right after creation the status is PENDING; "
+        "it becomes CONFIRMED or REJECTED once the inventory consumer has processed the event."
+    ),
+    responses={
+        200: OrderDetailSerializer,
+        404: OpenApiResponse(description="Order not found"),
+    },
+)
+class OrderDetailView(RetrieveAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderDetailSerializer
